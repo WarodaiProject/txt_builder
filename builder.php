@@ -33,8 +33,8 @@
     if(!empty($options['ref'])){
         $ref = $options['ref'];
     }
-	
-	$entries = [];	
+
+	$entries = [];
 	$isRepoFlag = false;
 
     if(preg_match('/.git$/',$repoPath)){
@@ -66,6 +66,7 @@ EOD;
 
         if(!$xEdition){
             $entry = explode('※',$entry)[0];
+            $entry = preg_replace('/ *\[\[[^]]+\]\]/','',$entry);
         }
 
         $entry = trim($entry);
