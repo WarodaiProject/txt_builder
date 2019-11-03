@@ -1,20 +1,34 @@
 <?php
 
-    $options = getopt('h',['help','dir:', 'file:', 'ref:','xedition']);
+    $options = getopt('h',['help','dir:', 'file:', 'ref:','sort:', 'xedition']);
 
     if(isset($options['h']) || isset($options['help'])){
         print("Скрипт генерации текстовой версии словарей.\n");
-        print("Использование: php.exe builder.php --dir --file [--ref --xedition]");
+        print("Использование: php.exe builder.php --dir --file [--ref --xedition --sort]");
         print("\n\n");
-        print("--dir                     Путь к директории с файлами карточек или,
-                                         если необходимо сгенерировать прошлую версию по тэгу репозитория,
-                                         - путь к директории .git (находится
-                                         внутри директории с карточками).\n");
-        print("--file                    Имя файла, в который необходимо положить результат.\n");
+        print(
+            "--dir        Путь к директории с файлами карточек или,\n".
+            "             если необходимо сгенерировать прошлую версию по тэгу репозитория,\n".
+            "             - путь к директории .git (находится внутри директории с карточками).\n\n"
+        );
+        print(
+            "--file       Имя файла, в который необходимо положить результат.\n\n"
+        );
 
-        print("--ref                     Тэг или коммит, на момент которых нужно взять версию
-                                         (необязательный параметр, если отсутствует, будет взята последняя версия).\n");
-        print("--xedition                Указание на то, что необходимо сгенерировать полную редакторскую версию.\n");
+        print(
+            "--sort       Способ сортировка карточек. Возможные значения: code - по коду,\n".
+            "             kana - по написанию каной, kiriji - по порядку букв в русском алфавите,\n".
+            "             header - по всему заголовку целиком. По умолчанию - code\n\n"
+        );
+
+        print(
+            "--ref        Тэг или коммит, на момент которых нужно взять версию\n".
+            "             (необязательный параметр, если отсутствует, будет взята последняя версия).\n\n"
+        );
+        
+        print(
+            "--xedition   Указание на то, что необходимо сгенерировать полную редакторскую версию.\n"
+        );
         exit();
     }
 
@@ -32,6 +46,15 @@
     $ref = null;
     if(!empty($options['ref'])){
         $ref = $options['ref'];
+    }
+
+    $sort = 'code';
+    if(!empty($options['sort'])){
+        $sort = trim($options['sort']);
+
+        if(!in_array($sort, ['code', 'kiriji', 'kana', 'header'])){
+            die("Неверно указана сортировка. Возможные значения: code, kiriji, kana, header.\n");
+        }
     }
 
 	$entries = [];
@@ -52,7 +75,27 @@
     else{
 	    scanCorpDir($repoPath,$entries);
     }
-    ksort($entries);
+
+    if($sort == 'code'){
+        ksort($entries);
+    }
+    else{
+        try{
+            if($sort == 'kana'){
+                uasort($entries, 'sortByKana');
+            }
+            if($sort == 'kiriji'){
+                uasort($entries, 'sortByKiriji');
+            }
+            if($sort == 'header'){
+                uasort($entries, 'sortByHeader');
+            }
+        }
+        catch (Exception $e){
+            die("Ошибка при сортировке: ".$e."\n");
+        }     
+    }
+
 
     $output = <<<EOD
 *******************************************************************************************************************
@@ -117,6 +160,82 @@ EOD;
             $code = explode('.',explode('/',$s)[1])[0];
             $entries[$code] =  join("\n",$_t);
         }
+    }
+
+    function sortByKana($a, $b){
+        return sortCard($a, $b, 'kana');
+    }
+
+    function sortByKiriji($a, $b){
+        return sortCard($a, $b, 'kiriji');
+    }
+
+    function sortByHeader($a, $b){
+        $a = explode("\n", $a)[0];
+        $b = explode("\n", $b)[0];
+
+        return ($a < $b) ? -1 : 1;
+    }
+
+    function sortCard($a, $b, $field='kana'){
+        $a = parseHeader(explode("\n", $a)[0])[$field][0];        
+        $b = parseHeader(explode("\n", $b)[0])[$field][0];
+
+        return ($a < $b) ? -1 : 1;
+    }
+
+    function parseHeader($headerString){
+        //Структура заголовка статьи
+        $header = [
+            'kana'=>[],           //неразобранный массив написаний каной
+            'hyouki'=>[],         //неразобранный массив написаний хё:ки
+            'kiriji'=>[],         //неразобранный массив написаний киридзи
+        ];
+    
+        //Разбираем заголовок с помощью вот такого регулярного выражения
+        $headerReg = '/^ *(([\x{3040}-\x{309F}\x{30A0}-\x{30FF}\x{31f0}-\x{31ff}…A-Z.,･！ ]+)(【([^】]+)】)? ?\(([а-яА-ЯЁёйў*,…:\[\] \x{0306}-]+)\)) *(\[([^]]+)\])?(〔([^〕]+)〕)?/u';
+    
+        //Заполняем структуру данных заголовка статьи
+        if(preg_match($headerReg,$headerString,$match)){
+            $header['kana'] = normalizeKana(explode(",", $match[2]));
+            $header['hyouki'] = (empty($match[4])) ? [] : normalizeHyouki(explode(",", $match[4]));
+            $header['kiriji'] = normalizeKiriji(explode(",",$match[5]));    
+        }
+        else{
+            //Заголовок не подошел под регулярное выражение.
+            throw new Exception('Article has malformed header');
+        }
+    
+        return $header;
+    }
+
+    function normalizeKana($kana){
+        if(is_string($kana)){
+            $kana = [$kana];
+        }
+        for($i=0;$i<count($kana);$i++){
+            $kana[$i] = trim($kana[$i]);
+            $kana[$i] = preg_replace('/([^A-Za-z])[IV]+$/','$1',$kana[$i]);
+            $kana[$i] = str_replace(['…','!','.'],'',$kana[$i]);
+        }
+        return $kana;
+    }
+    
+    function normalizeHyouki($hyouki){
+        return normalizeKana($hyouki);
+    }
+    
+    function normalizeKiriji($kiriji){
+        if(is_string($kiriji)){
+            $kiriji = [$kiriji];
+        }
+        for($i=0;$i<count($kiriji);$i++){
+            $kiriji[$i] = trim($kiriji[$i]);
+            $kiriji[$i] = str_replace(['-','…'], '',$kiriji[$i]);
+            $kiriji[$i] = str_replace('ў','у',$kiriji[$i]);
+            $kiriji[$i] = str_replace('й','и',$kiriji[$i]);
+        }
+        return $kiriji;
     }
 
     function file_get_contents_utf($filename){
