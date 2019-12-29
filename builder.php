@@ -128,11 +128,11 @@ EOD;
 	    if ($handle = opendir($path)) {
             while (false !== ($entry = readdir($handle))) {
                 if ($entry{0} != ".") {
-                    if(is_file("{$path}/{$entry}")){
+                    if(is_file("{$path}/{$entry}") && preg_match('/^[0-9A-]+\.txt$/', $entry)){
                         $code = explode('.',$entry)[0];
                         $entries[$code] =  trim(file_get_contents_utf("{$path}/{$entry}"));
                     }
-                    else{
+                    elseif(preg_match('/^[0-9A-]+$/', $entry)) {
                         scanCorpDir("{$path}/{$entry}",$entries);
                     }
                 }
