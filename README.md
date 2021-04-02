@@ -20,12 +20,23 @@ kana - по написанию каной, kiriji - по порядку букв
 
 Примеры:
 --------
-php.exe builder.php --dir ../../warodai-source --file ewarodai.txt
 
-Сгенерировать публичную версию WARODAI непосредственно из файлов карточек и сложить результат в ewarodai.txt
+Сгенерировать публичную версию WARODAI непосредственно из файлов карточек и сложить результат в warodai.txt
+```
+php.exe builder.php --dir ../warodai-source --sort kana --file warodai.txt
+```
 
+Сгенерировать публичную версию БЯРС непосредственно из файлов карточек и сложить результат в bjrd.txt
+```
+php.exe builder.php --dir ../bjrd-source --sort code --file bjrd.txt
+```
 
-php.exe builder.php --dir ../../warodai-source/.git --file ewarodai.txt --ref 2011-11-17 --xedition
+Сгенерировать редакторскую версию БЯРС непосредственно из файлов карточек и сложить результат в xbjrd.txt
+```
+php.exe builder.php --dir ../bjrd-source --sort code --file xbjrd.txt --xedition
+```
 
-Сгенерировать редакторскую версию WARODAI из репозитория по состоянию на тэг 2011-11-17
-
+Сгенерировать редакторскую версию БЯРС из репозитория по состоянию на тэг 2011-11-17
+```
+php.exe builder.php --dir ../bjrd-source/.git --sort code --file xbjrd.txt --ref 2011-11-17 --xedition
+```
